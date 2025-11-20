@@ -207,9 +207,9 @@
        .replace(/'/g, '&apos;');
    }
  
- static formatSSE(event: any): string {
-   return `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
- }
+   static formatSSE(event: any): string {
+     return `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+   }
  
    static convertSDKMessageToEvent(sdkMsg: SDKMessage): any {
      if (sdkMsg.type === 'stream_event') {
@@ -283,37 +283,6 @@
    requestCount++;
    const requestId = `msg_${crypto.randomUUID().replace(/-/g, '').substring(0, 24)}`;
    
-   // ==================================================================================
-   // EXTRACT CUSTOM AUTH FROM HEADERS
-   // ==================================================================================
-   let customAuthToken: string | undefined;
-   let customBaseUrl: string | undefined;
-   
-   const authHeader = c.req.header('authorization') || c.req.header('x-api-key') || '';
-   
-   if (authHeader && authHeader.includes('cc:')) {
-     try {
-       const ccIndex = authHeader.indexOf('cc:');
-       const ccContent = authHeader.substring(ccIndex + 3);
-       const parts = ccContent.split('!');
-       
-       if (parts.length >= 2 && parts[0].trim() && parts[1].trim()) {
-         customAuthToken = parts[0].trim();
-         customBaseUrl = parts[1].trim();
-         
-         if (CONFIG.DEBUG) {
-           console.log(`🔑 Custom auth extracted:`);
-           console.log(`   Token: ${customAuthToken.substring(0, 10)}...`);
-           console.log(`   URL: ${customBaseUrl}`);
-         }
-       }
-     } catch (e) {
-       if (CONFIG.DEBUG) {
-         console.warn(`⚠️  Failed to parse cc: header:`, e);
-       }
-     }
-   }
-   
    let body: MessagesRequest;
    
    try {
@@ -361,6 +330,53 @@
        : body.messages[0].content.filter(b => b.type === 'text').map(b => (b as any).text).join('\n');
    }
  
+   // ============================================================================
+   // 遍历 HTTP headers，解析 authorization / x-api-key 中的 "cc@" 配置
+   // 若找到且格式为 cc@<token>!<baseUrl>，则覆盖 env 中的默认值
+   // ============================================================================
+ 
+   // 默认值：即原来构建 env 时的常量
+   let anthropicAuthToken = 'xxxx';
+   let anthropicBaseUrl = 'https://www.3rdprovider.com/api';
+ 
+   // 遍历所有 header，大小写不敏感匹配
+   const headers = c.req.raw.headers; // Fetch Headers 对象
+   for (const [name, value] of headers) {
+     if (!value || value.trim() === '') continue;
+
+     console.log(`✅ headers [${name}: ${value}]`);//
+ 
+     const lowerName = name.toLowerCase();
+     if (lowerName === 'authorization' || lowerName === 'x-api-key') {
+       const ccIndex = value.indexOf('cc@');
+       console.log(`✅ Found cc`);//
+       if (ccIndex !== -1) {
+         // 取出 cc@ 之后的部分
+         const afterCc = value.slice(ccIndex + 'cc@'.length);
+         console.log(`✅ afterCC [${afterCc}]`);//
+ 
+         // 以第一个 '!' 作为分隔符进行切分
+         const bangIndex = afterCc.indexOf('!');
+         if (bangIndex !== -1) {
+           const tokenPart = afterCc.slice(0, bangIndex).trim();
+           const baseUrlPart = afterCc.slice(bangIndex + 1).trim();
+ 
+           if (tokenPart) {
+             anthropicAuthToken = tokenPart;
+             console.log(`✅ token [${anthropicAuthToken}]`);//
+           }
+           if (baseUrlPart) {
+             anthropicBaseUrl = baseUrlPart;
+             console.log(`✅ baseurl [${anthropicBaseUrl}]`);//
+           }
+         }
+       }
+ 
+       // 需求是“任意一个 header”触发即可，匹配到其中一个就可以结束遍历
+       break;
+     }
+   }
+ 
    const sdkOptions: SDKOptions = {
      cwd: body.cwd || CONFIG.DEFAULT_CWD,
      model: body.model || CONFIG.DEFAULT_MODEL,
@@ -372,9 +388,9 @@
      includePartialMessages: true,
      systemPrompt: systemPrompt,
      settingSources: ['local'],
-     env : {
-       'ANTHROPIC_AUTH_TOKEN': 'xxxx',
-       'ANTHROPIC_BASE_URL': 'https://www.88code.org/api',
+     env: {
+       ANTHROPIC_AUTH_TOKEN: JSON.stringify(anthropicAuthToken),
+       ANTHROPIC_BASE_URL: anthropicBaseUrl,
      },
    };
  

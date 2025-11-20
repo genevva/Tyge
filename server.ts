@@ -187,9 +187,9 @@ class HistoryReplayConverter {
       .replace(/'/g, '&apos;');
   }
 
-  static formatSSE(event: any): string {
-    return `event: ${event.type}\ndata: ${JSON.dumps(event)}\n\n`;
-  }
+static formatSSE(event: any): string {
+  return `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+}
 
   static convertSDKMessageToEvent(sdkMsg: SDKMessage): any {
     if (sdkMsg.type === 'stream_event') {

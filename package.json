@@ -1,22 +1,27 @@
 {
   "name": "hai-ts",
   "version": "2.0.0",
-  "description": "Claude Messages API Gateway - Bun Edition",
   "type": "module",
+  "description": "Claude Messages API Gateway - TypeScript Single File Edition",
+  "main": "index.ts",
   "scripts": {
-    "dev": "bun --hot server.ts",
-    "start": "bun server.ts",
-    "install-sdk": "bun add @anthropic-ai/claude-agent-sdk express cors",
-    "install-types": "bun add -d @types/express @types/cors"
+    "dev": "tsx watch index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
-    "express": "^4.19.0",
-    "cors": "^2.8.5"
+    "@fastify/cors": "^9.0.1",
+    "dotenv": "^16.4.1",
+    "fastify": "^4.26.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/cors": "^2.8.17",
-    "@types/node": "^22.0.0"
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

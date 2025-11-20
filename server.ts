@@ -50,6 +50,26 @@ const CONFIG = {
   MAX_TURNS: Number(process.env.DEFAULT_MAX_TURNS || 99999),
 };
 
+const ALL_STANDARD_TOOLS = [
+  'Task',
+  'Bash',
+  'BashOutput',
+  'Edit',
+  'Read',
+  'Write',
+  'Glob',
+  'Grep',
+  'KillBash',
+  'NotebookEdit',
+  'WebFetch',
+  'WebSearch',
+  'TodoWrite',
+  'ExitPlanMode',
+  'ListMcpResources',
+  'ReadMcpResource',
+];
+
+
 // ==================================================================================
 // TYPE DEFINITIONS
 // ==================================================================================
@@ -314,7 +334,9 @@ app.post('/v1/messages', async (c) => {
     cwd: body.cwd || CONFIG.DEFAULT_CWD,
     model: body.model || CONFIG.DEFAULT_MODEL,
     permissionMode: CONFIG.PERMISSION_MODE,
-    allowedTools: CONFIG.ALLOWED_TOOLS,
+    // Disable all tools
+    allowedTools: [],
+    disallowed_tools: ALL_STANDARD_TOOLS,
     maxTurns: body.max_turns || CONFIG.MAX_TURNS,
     includePartialMessages: true,
     systemPrompt: systemPrompt,

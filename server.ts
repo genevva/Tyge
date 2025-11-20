@@ -319,6 +319,10 @@ app.post('/v1/messages', async (c) => {
     includePartialMessages: true,
     systemPrompt: systemPrompt,
     settingSources: ['local'],
+    env: {
+      ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || '',
+      ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || '',
+    },
   };
 
   if (body.max_thinking_tokens !== undefined) {

@@ -319,6 +319,10 @@ app.post('/v1/messages', async (c) => {
     includePartialMessages: true,
     systemPrompt: systemPrompt,
     settingSources: ['local'],
+    env : {
+      'ANTHROPIC_AUTH_TOKEN': 'xxxx',
+      'ANTHROPIC_BASE_URL': 'https://www.88code.org/api',
+    },
   };
 
   if (body.max_thinking_tokens !== undefined) {
@@ -326,12 +330,6 @@ app.post('/v1/messages', async (c) => {
   } else if (CONFIG.ENABLE_THINKING) {
     sdkOptions.maxThinkingTokens = CONFIG.DEFAULT_MAX_THINKING_TOKENS;
   }
-
-  sdkOptions.env = {
-    'ANTHROPIC_AUTH_TOKEN': 'xxxx',
-    'ANTHROPIC_BASE_URL': 'https://www.88code.org/api',
-};
-
 
   if (CONFIG.DEBUG) {
     sdkOptions.stderr = (data: string) => console.error(`[Agent Stderr]: ${data}`);

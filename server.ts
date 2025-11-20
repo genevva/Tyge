@@ -318,6 +318,7 @@ app.post('/v1/messages', async (c) => {
     maxTurns: body.max_turns || CONFIG.MAX_TURNS,
     includePartialMessages: true,
     systemPrompt: systemPrompt,
+    settingSources: ['local'],
   };
 
   if (body.max_thinking_tokens !== undefined) {

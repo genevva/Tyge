@@ -1,25 +1,23 @@
 /**
  * ==================================================================================
- * haI-ts - Claude Messages API Gateway (TypeScript Single File Edition)
+ * haI-ts - Claude Messages API Gateway (Bun Single File Edition)
  * ==================================================================================
  * 
- * A TypeScript rewrite of the Python haI gateway that exposes Claude Code Agent
- * as a standard OpenAI/Anthropic compatible REST API with history replay.
+ * A TypeScript gateway that exposes Claude Code Agent as a standard 
+ * OpenAI/Anthropic compatible REST API with history replay.
  * 
- * Architecture:
- * - Framework: Hono (lightweight, edge-ready)
- * - Agent: @anthropic-ai/claude-agent-sdk
- * - Core Strategy: Stateless API + History Replay via XML Context Stuffing
+ * Runtime: Bun (optimized)
+ * Framework: Hono
+ * Agent: @anthropic-ai/claude-agent-sdk
  * 
- * Author: Max (Refactored from Python original)
- * Version: 2.0.0
+ * Author: Max
+ * Version: 2.0.0-bun
  */
 
 import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
-import { serve } from '@hono/node-server';
 import { 
   query, 
   type SDKMessage, 
@@ -40,20 +38,20 @@ const CONFIG = {
   DEFAULT_CWD: process.env.DEFAULT_CWD || '/tmp',
   DEFAULT_MODEL: process.env.DEFAULT_MODEL || 'claude-3-5-sonnet-20241022',
   DEFAULT_MAX_THINKING_TOKENS: Number(process.env.DEFAULT_MAX_THINKING_TOKENS || 8000),
-  ENABLE_THINKING: process.env.ENABLE_THINKING_BY_DEFAULT !== 'false', // default true
+  ENABLE_THINKING: process.env.ENABLE_THINKING_BY_DEFAULT !== 'false',
   
-  // Permission Mode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
+  // Permission Mode
   PERMISSION_MODE: (process.env.DEFAULT_PERMISSION_MODE || 'acceptEdits') as PermissionMode,
   
-  // Tools (comma-separated)
+  // Tools
   ALLOWED_TOOLS: (process.env.DEFAULT_ALLOWED_TOOLS || 'WebSearch,Bash,Read,Write,Edit,Glob,Grep').split(','),
   
-  // Max conversation turns
+  // Max turns
   MAX_TURNS: Number(process.env.DEFAULT_MAX_TURNS || 99999),
 };
 
 // ==================================================================================
-// TYPE DEFINITIONS (API Models)
+// TYPE DEFINITIONS
 // ==================================================================================
 
 interface Message {
@@ -84,8 +82,6 @@ interface MessagesRequest {
   temperature?: number;
   top_p?: number;
   top_k?: number;
-  
-  // Custom extensions
   max_thinking_tokens?: number;
   cwd?: string;
   max_turns?: number;
@@ -113,16 +109,6 @@ interface MessagesResponse {
 // ==================================================================================
 
 class HistoryReplayConverter {
-  /**
-   * 将完整对话历史转换为单一 Prompt String
-   * 
-   * 策略：
-   * 1. 历史对话封装在 <conversation_history> XML 块中
-   * 2. 当前问题封装在 <current_question> 块中
-   * 3. 告知 Agent 只回答 current_question
-   * 
-   * 这种方法允许在无状态 API 中模拟有状态对话
-   */
   static convertMessagesToPrompt(messages: Message[]): string {
     if (!messages || messages.length === 0) {
       throw new Error('Messages array cannot be empty');
@@ -137,7 +123,6 @@ class HistoryReplayConverter {
 
     const parts: string[] = [];
 
-    // 构建历史上下文
     if (history.length > 0) {
       parts.push('<conversation_history>');
       parts.push('This is the previous conversation for context. You should be aware of it,');
@@ -145,7 +130,7 @@ class HistoryReplayConverter {
       parts.push('');
 
       for (const msg of history) {
-        if (msg.role === 'system') continue; // System prompts handled separately
+        if (msg.role === 'system') continue;
         
         const tag = msg.role === 'user' ? 'user' : 'assistant';
         parts.push(`<${tag}>`);
@@ -157,7 +142,6 @@ class HistoryReplayConverter {
       parts.push('');
     }
 
-    // 构建当前问题
     parts.push('<current_question>');
     parts.push(this.extractTextContent(current));
     parts.push('</current_question>');
@@ -165,10 +149,6 @@ class HistoryReplayConverter {
     return parts.join('\n');
   }
 
-  /**
-   * 从 Message 中提取纯文本内容
-   * 处理字符串和结构化内容
-   */
   private static extractTextContent(msg: Message): string {
     if (typeof msg.content === 'string') {
       return msg.content;
@@ -198,9 +178,6 @@ class HistoryReplayConverter {
       .join('\n');
   }
 
-  /**
-   * XML 转义
-   */
   private static escapeXml(text: string): string {
     return text
       .replace(/&/g, '&amp;')
@@ -210,23 +187,15 @@ class HistoryReplayConverter {
       .replace(/'/g, '&apos;');
   }
 
-  /**
-   * 格式化为 SSE (Server-Sent Events)
-   */
   static formatSSE(event: any): string {
-    return `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+    return `event: ${event.type}\ndata: ${JSON.dumps(event)}\n\n`;
   }
 
-  /**
-   * 将 SDK Message 转换为 API 兼容的 Event
-   */
   static convertSDKMessageToEvent(sdkMsg: SDKMessage): any {
-    // Stream Event (部分消息)
     if (sdkMsg.type === 'stream_event') {
       return sdkMsg.event;
     }
 
-    // Result Message (最终结果)
     if (sdkMsg.type === 'result') {
       return {
         type: 'message_delta',
@@ -235,7 +204,6 @@ class HistoryReplayConverter {
       };
     }
 
-    // Assistant Message (完整消息，非流式时使用)
     if (sdkMsg.type === 'assistant') {
       return {
         type: 'assistant_message',
@@ -253,11 +221,9 @@ class HistoryReplayConverter {
 
 const app = new Hono();
 
-// Middleware
 app.use('*', logger());
 app.use('*', cors());
 
-// Global stats
 let requestCount = 0;
 let successCount = 0;
 let errorCount = 0;
@@ -266,14 +232,12 @@ let errorCount = 0;
 // ROUTES
 // ==================================================================================
 
-/**
- * Root endpoint - service status
- */
 app.get('/', (c) => {
   return c.json({
-    service: 'Claude Messages API Gateway (TypeScript)',
-    version: '2.0.0-ts',
+    service: 'Claude Messages API Gateway (Bun)',
+    version: '2.0.0-bun',
     status: 'running',
+    runtime: 'bun',
     features: {
       streaming: true,
       history_replay: true,
@@ -288,9 +252,6 @@ app.get('/', (c) => {
   });
 });
 
-/**
- * Health check
- */
 app.get('/health', (c) => {
   return c.json({ 
     status: 'healthy',
@@ -298,10 +259,6 @@ app.get('/health', (c) => {
   });
 });
 
-/**
- * Main Messages API endpoint
- * Compatible with OpenAI/Anthropic Messages API format
- */
 app.post('/v1/messages', async (c) => {
   requestCount++;
   const requestId = `msg_${crypto.randomUUID().replace(/-/g, '').substring(0, 24)}`;
@@ -318,7 +275,6 @@ app.post('/v1/messages', async (c) => {
     }, 400);
   }
 
-  // Validate required fields
   if (!body.messages || body.messages.length === 0) {
     errorCount++;
     return c.json({
@@ -336,7 +292,6 @@ app.post('/v1/messages', async (c) => {
     console.log(`${'='.repeat(70)}\n`);
   }
 
-  // Build prompt using History Replay strategy
   let promptString: string;
   try {
     promptString = HistoryReplayConverter.convertMessagesToPrompt(body.messages);
@@ -348,7 +303,6 @@ app.post('/v1/messages', async (c) => {
     }, 400);
   }
 
-  // Extract system prompt
   let systemPrompt = body.system;
   if (!systemPrompt && body.messages[0]?.role === 'system') {
     systemPrompt = typeof body.messages[0].content === 'string' 
@@ -356,25 +310,22 @@ app.post('/v1/messages', async (c) => {
       : body.messages[0].content.filter(b => b.type === 'text').map(b => (b as any).text).join('\n');
   }
 
-  // Build SDK options
   const sdkOptions: SDKOptions = {
     cwd: body.cwd || CONFIG.DEFAULT_CWD,
     model: body.model || CONFIG.DEFAULT_MODEL,
     permissionMode: CONFIG.PERMISSION_MODE,
     allowedTools: CONFIG.ALLOWED_TOOLS,
     maxTurns: body.max_turns || CONFIG.MAX_TURNS,
-    includePartialMessages: true, // Required for streaming
+    includePartialMessages: true,
     systemPrompt: systemPrompt,
   };
 
-  // Thinking tokens configuration
   if (body.max_thinking_tokens !== undefined) {
     sdkOptions.maxThinkingTokens = body.max_thinking_tokens;
   } else if (CONFIG.ENABLE_THINKING) {
     sdkOptions.maxThinkingTokens = CONFIG.DEFAULT_MAX_THINKING_TOKENS;
   }
 
-  // Environment variables for temperature, etc.
   if (body.temperature !== undefined || body.top_p !== undefined || body.top_k !== undefined) {
     sdkOptions.env = {
       ...(body.temperature !== undefined && { ANTHROPIC_TEMPERATURE: String(body.temperature) }),
@@ -383,7 +334,6 @@ app.post('/v1/messages', async (c) => {
     };
   }
 
-  // Debug stderr
   if (CONFIG.DEBUG) {
     sdkOptions.stderr = (data: string) => console.error(`[Agent Stderr]: ${data}`);
   }
@@ -394,7 +344,6 @@ app.post('/v1/messages', async (c) => {
   if (body.stream) {
     return stream(c, async (stream) => {
       try {
-        // Send message_start event
         await stream.write(HistoryReplayConverter.formatSSE({
           type: 'message_start',
           message: {
@@ -408,7 +357,6 @@ app.post('/v1/messages', async (c) => {
           }
         }));
 
-        // Query the agent
         const generator = query({
           prompt: promptString,
           options: sdkOptions
@@ -416,7 +364,6 @@ app.post('/v1/messages', async (c) => {
 
         let eventCount = 0;
 
-        // Stream all events
         for await (const sdkMsg of generator) {
           const event = HistoryReplayConverter.convertSDKMessageToEvent(sdkMsg);
           if (event && event.type) {
@@ -425,7 +372,6 @@ app.post('/v1/messages', async (c) => {
           }
         }
 
-        // Send message_stop
         await stream.write(HistoryReplayConverter.formatSSE({
           type: 'message_stop'
         }));
@@ -466,9 +412,7 @@ app.post('/v1/messages', async (c) => {
       let usage: Usage = { input_tokens: 0, output_tokens: 0 };
       let stopReason = 'end_turn';
 
-      // Collect all messages
       for await (const sdkMsg of generator) {
-        // Handle stream events to build content
         if (sdkMsg.type === 'stream_event') {
           const event = sdkMsg.event;
           
@@ -500,7 +444,6 @@ app.post('/v1/messages', async (c) => {
           }
         }
         
-        // Handle result message
         if (sdkMsg.type === 'result') {
           if (sdkMsg.usage) {
             usage = {
@@ -517,7 +460,6 @@ app.post('/v1/messages', async (c) => {
         }
       }
 
-      // Build response
       const response: MessagesResponse = {
         id: requestId,
         type: 'message',
@@ -549,9 +491,6 @@ app.post('/v1/messages', async (c) => {
   }
 });
 
-/**
- * Token counting endpoint (rough estimation)
- */
 app.post('/v1/messages/count-tokens', async (c) => {
   try {
     const body = await c.req.json();
@@ -571,7 +510,6 @@ app.post('/v1/messages/count-tokens', async (c) => {
       }
     }
     
-    // Rough estimation: ~0.5 tokens per character (conservative)
     const estimatedTokens = Math.ceil(totalChars * 0.5);
     
     return c.json({ input_tokens: estimatedTokens });
@@ -581,11 +519,11 @@ app.post('/v1/messages/count-tokens', async (c) => {
 });
 
 // ==================================================================================
-// SERVER STARTUP
+// SERVER STARTUP (Bun Native)
 // ==================================================================================
 
 console.log('\n' + '='.repeat(70));
-console.log('🚀 Claude Messages API Gateway (TypeScript) Starting...');
+console.log('🚀 Claude Messages API Gateway (Bun) Starting...');
 console.log('='.repeat(70));
 console.log(`📍 CWD: ${CONFIG.DEFAULT_CWD}`);
 console.log(`🔧 Tools: ${CONFIG.ALLOWED_TOOLS.join(', ')}`);
@@ -596,8 +534,9 @@ console.log(`🐛 Debug: ${CONFIG.DEBUG}`);
 console.log('='.repeat(70));
 console.log(`✅ Server running on http://${CONFIG.API_HOST}:${CONFIG.API_PORT}\n`);
 
-serve({
-  fetch: app.fetch,
+// 使用 Bun 原生 serve API
+export default {
   port: CONFIG.API_PORT,
   hostname: CONFIG.API_HOST,
-});
+  fetch: app.fetch,
+};

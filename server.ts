@@ -320,8 +320,8 @@ app.post('/v1/messages', async (c) => {
     systemPrompt: systemPrompt,
     settingSources: ['local'],
     env: {
-      ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || '',
-      ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || '',
+      ANTHROPIC_AUTH_TOKEN: 'PPPPPP',
+      ANTHROPIC_BASE_URL: 'https://www.88code.org/api',
     },
   };
 

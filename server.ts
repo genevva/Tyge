@@ -12,7 +12,7 @@
  * - 支持 Thinking、工具调用、图片等高级功能
  * 
  * Author: Max (Refactored from Python version)
- * Version: 2.0.0-ts
+ * Version: 2.0.1-ts (Fixed settingSources issue)
  * ============================================================================
  */
 
@@ -69,6 +69,14 @@ const CONFIG = {
 
   // 最大轮次
   DEFAULT_MAX_TURNS: Number(process.env.DEFAULT_MAX_TURNS || '99999'),
+
+  // 设置源配置（新增）
+  // 可选值：'user', 'project', 'local' 的组合，用逗号分隔
+  // 留空表示不加载任何文件系统设置（推荐，完全由代码控制）
+  SETTING_SOURCES: (process.env.SETTING_SOURCES || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean) as ('user' | 'project' | 'local')[],
 
   // 调试模式
   DEBUG: (process.env.DEBUG || 'false').toLowerCase() === 'true',
@@ -544,6 +552,12 @@ function buildSdkOptions(reqBody: MessagesRequest, isStream: boolean): Options {
     includePartialMessages: isStream,
     env: { ...process.env } as Record<string, string>,
     extraArgs: {},
+    
+    // 🔧 关键修复：明确设置 settingSources
+    // 空数组 = 不加载任何文件系统设置（推荐）
+    // ['project'] = 只加载项目设置（会读取 CLAUDE.md）
+    // ['user', 'project', 'local'] = 加载所有设置源
+    settingSources: CONFIG.SETTING_SOURCES.length > 0 ? CONFIG.SETTING_SOURCES : [],
   };
 
   // CLI 路径（如果配置了）
@@ -764,7 +778,7 @@ let errorCount = 0;
 app.get('/', (_req, res) => {
   res.json({
     service: 'Claude Messages API Gateway (TypeScript)',
-    version: '2.0.0-ts',
+    version: '2.0.1-ts',
     status: 'running',
     features: {
       streaming: true,
@@ -772,6 +786,13 @@ app.get('/', (_req, res) => {
       thinking: CONFIG.ENABLE_THINKING_BY_DEFAULT,
       tools: true,
       images: true,
+    },
+    configuration: {
+      setting_sources: CONFIG.SETTING_SOURCES.length > 0 
+        ? CONFIG.SETTING_SOURCES 
+        : 'none (code-only)',
+      permission_mode: CONFIG.DEFAULT_PERMISSION_MODE,
+      max_turns: CONFIG.DEFAULT_MAX_TURNS,
     },
     statistics: {
       total_requests: requestCount,
@@ -914,6 +935,7 @@ app.listen(CONFIG.API_PORT, CONFIG.API_HOST, () => {
     console.log(`💭 默认 Thinking Tokens: ${CONFIG.DEFAULT_MAX_THINKING_TOKENS}`);
   }
   console.log(`🔐 权限模式: ${CONFIG.DEFAULT_PERMISSION_MODE}`);
+  console.log(`⚙️  设置源: ${CONFIG.SETTING_SOURCES.length > 0 ? CONFIG.SETTING_SOURCES.join(', ') : '无（纯代码控制）'}`);
   console.log(`🔄 最大轮次: ${CONFIG.DEFAULT_MAX_TURNS}`);
   console.log(`🐞 调试模式: ${CONFIG.DEBUG}`);
   console.log('='.repeat(70));

@@ -318,6 +318,20 @@ app.post('/v1/messages', async (c) => {
     maxTurns: body.max_turns || CONFIG.MAX_TURNS,
     includePartialMessages: true,
     systemPrompt: systemPrompt,
+    const sdkOptions: SDKOptions = {
+  cwd: body.cwd || CONFIG.DEFAULT_CWD,
+  model: body.model || CONFIG.DEFAULT_MODEL,
+  permissionMode: CONFIG.PERMISSION_MODE,
+  allowedTools: CONFIG.ALLOWED_TOOLS,
+  maxTurns: body.max_turns || CONFIG.MAX_TURNS,
+  includePartialMessages: true,
+  systemPrompt: systemPrompt,
+  // 显式传递环境变量
+  env: {
+    ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || '',
+    ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || '',
+  },
+};
   };
 
   if (body.max_thinking_tokens !== undefined) {

@@ -327,13 +327,11 @@ app.post('/v1/messages', async (c) => {
     sdkOptions.maxThinkingTokens = CONFIG.DEFAULT_MAX_THINKING_TOKENS;
   }
 
-  if (body.temperature !== undefined || body.top_p !== undefined || body.top_k !== undefined) {
-    sdkOptions.env = {
-      ...(body.temperature !== undefined && { ANTHROPIC_TEMPERATURE: String(body.temperature) }),
-      ...(body.top_p !== undefined && { ANTHROPIC_TOP_P: String(body.top_p) }),
-      ...(body.top_k !== undefined && { ANTHROPIC_TOP_K: String(body.top_k) }),
-    };
-  }
+  sdkOptions.env = {
+    'ANTHROPIC_AUTH_TOKEN': 'xxxx',
+    'ANTHROPIC_BASE_URL': 'https://www.88code.org/api',
+};
+
 
   if (CONFIG.DEBUG) {
     sdkOptions.stderr = (data: string) => console.error(`[Agent Stderr]: ${data}`);
